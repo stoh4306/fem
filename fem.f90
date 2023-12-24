@@ -23,7 +23,7 @@ program fem
     integer     :: nsubd(2), grid_size(2)
     real        :: grid_spacing(2)
     
-    integer, parameter      :: GRIDNX = 3, GRIDNY = 3
+    integer, parameter      :: GRIDNX = 1, GRIDNY = 1
     integer, parameter      :: NNODE = (GRIDNX + 1) * (GRIDNY + 1)
     integer, parameter      :: NTRIANGLE = GRIDNX * GRIDNY * 2
     
@@ -35,6 +35,8 @@ program fem
     integer, parameter:: NMAXNONZEROS = 10
     integer     :: K_sparse_index(NNODE, NMAXNONZEROS)
     real        :: K_sparse(NNODE, NMAXNONZEROS), b(NNODE)
+    
+    integer :: i
     
     ! Set domain
     domin = [0.0, 0.0]
@@ -56,11 +58,19 @@ program fem
     
     ! Body of fem
     print *, 'Domain : ', grid_spacing, grid_size, nnode, ntriangle
-    print *, 'Nodes : ', node(2, :)
-    print *, 'Triangles : ', triangle
+    
+    print *, 'Nodes : '
+    do i = 1, nnode
+        print*, node(i,:)
+    end do
+    
+    print *, 'Triangles : '
+    do i = 1, ntriangle
+        print *, triangle(i,:)
+    end do
     print *, 'f : ', f(1:nnode)
     print *, 'g : ', g(1:nnode)
-    
+   
 end program fem
     
 subroutine set_source_bdry_func(domin, nsubd, grid_spacing, nnode, node, f, g)
@@ -116,19 +126,19 @@ subroutine set_mesh_on_rectangular_domain(domin, nsubd, grid_spacing, &
     real    :: x, y
         
     ! Set nodes
-    x = domin(1)
+    y = domin(2)
     nindex = 0
-    do i = 1, nsubd(1)+1
-        y = domin(2) 
-        do j = 1, nsubd(2)+1
+    do j = 1, nsubd(2)+1
+        x = domin(1) 
+        do i = 1, nsubd(1)+1
             nindex = nindex + 1   
                 
             node(nindex, 1) = x
             node(nindex, 2) = y
                 
-            y = y + grid_spacing(2)
+            x = x + grid_spacing(1)
         end do
-        x = x + grid_spacing(1)
+        y = y + grid_spacing(2)
     end do
             
     if (nindex .ne. nnode) then
