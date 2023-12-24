@@ -23,16 +23,17 @@ program fem
     integer     :: nsubd(2), grid_size(2)
     real        :: grid_spacing(2)
     
-    integer, parameter      :: GRIDNX = 1, GRIDNY = 1
+    integer, parameter      :: GRIDNX = 2, GRIDNY = 2
     integer, parameter      :: NNODE = (GRIDNX + 1) * (GRIDNY + 1)
     integer, parameter      :: NTRIANGLE = GRIDNX * GRIDNY * 2
+    integer, parameter      :: NMAXNONZEROS = 10
     
     real        :: node(NNODE, 2)
-    integer     :: triangle(NTRIANGLE, 3)
+    integer     :: triangle(NTRIANGLE, 3), node_neighbor(NNODE, NMAXNONZEROS)
+    logical     :: isbdry(NNODE)
     
     real        :: f(NNODE), g(NNODE) ! -div(grad u) = f, u = g on boundary
     
-    integer, parameter:: NMAXNONZEROS = 10
     integer     :: K_sparse_index(NNODE, NMAXNONZEROS)
     real        :: K_sparse(NNODE, NMAXNONZEROS), b(NNODE)
     
@@ -48,28 +49,53 @@ program fem
     
     ! Set Mesh
     call set_mesh_on_rectangular_domain(domin, nsubd, grid_spacing, &
-                nnode, node, ntriangle, triangle)
+                nnode, node, ntriangle, triangle, &
+                NMAXNONZEROS, node_neighbor, isbdry)
     
     call set_source_bdry_func(domin, nsubd, grid_spacing, nnode, node, f, g)
     
     ! Compute K-matrix and b
-    call compute_fem_matrix_equation(domin, nsubd, grid_spacing, nnode, node, ntriangle, triangle, f, g, &
+    call compute_fem_matrix_equation(domin, nsubd, grid_spacing, &
+                nnode, node, ntriangle, triangle, node_neighbor, isbdry, f, g, &
                 NMAXNONZEROS, K_sparse_index, K_sparse, b)
     
     ! Body of fem
-    print *, 'Domain : ', grid_spacing, grid_size, nnode, ntriangle
+    !print *, 'Domain : ', grid_spacing, grid_size, nnode, ntriangle
     
-    print *, 'Nodes : '
+    !print *, 'Nodes : '
+    !do i = 1, nnode
+    !    print*, node(i,:)
+    !end do
+    
+    !print *, 'Triangles : '
+    !do i = 1, ntriangle
+    !    print *, triangle(i,:)
+    !end do
+    
+    print *, 'Neighbors : '
     do i = 1, nnode
-        print*, node(i,:)
+        if (node_neighbor(i, 1) > 0) then
+            print*, 'i=', i, " : ", node_neighbor(i, 1:node_neighbor(i,1)+1)
+        else
+            print*, 'i=', i, " : ", node_neighbor(i, 1)
+        end if
     end do
     
-    print *, 'Triangles : '
-    do i = 1, ntriangle
-        print *, triangle(i,:)
-    end do
     print *, 'f : ', f(1:nnode)
     print *, 'g : ', g(1:nnode)
+    print *, 'bdry', isbdry
+    
+    print *, 'K :'
+    do i = 1, nnode
+        if (K_sparse_index(i, 1) > 0) then
+            print*, 'i=', i, " : ", K_sparse(i, 2:K_sparse_index(i,1)+1)
+        else
+            print*, 'i=', i, " : "
+        end if
+    end do
+    
+    print*, 'b :', b
+    
    
 end program fem
     
@@ -100,7 +126,7 @@ end subroutine
 real function source_func(x, y)
     implicit none
     real :: x, y
-    source_func = 2.0*x*(1.0-x)*y*(1.0-y)
+    source_func = 2.0*(x*(1.0-x)+y*(1.0-y))
 end function source_func
     
 !----------------------------------
@@ -113,18 +139,26 @@ real function bdry_func(x, y)
 end function bdry_func
     
 subroutine set_mesh_on_rectangular_domain(domin, nsubd, grid_spacing, &
-                                        nnode, node, ntriangle, triangle)
+                                        nnode, node, ntriangle, triangle, &
+                                        nmaxnonzeros, node_neighbor, isbdry)
     implicit none
     real, intent(in) :: domin(2)
     integer, intent(in) :: nsubd(2)
     real, intent(in)    :: grid_spacing(2)
-    integer, intent(in) :: nnode, ntriangle
+    integer, intent(in) :: nnode, ntriangle, nmaxnonzeros
     real, intent(out) :: node(nnode, 2)
     integer, intent(out) :: triangle(ntriangle, 3)
+    integer, intent(out) :: node_neighbor(nnode, nmaxnonzeros)
+    logical, intent(out) :: isbdry(nnode)
         
-    integer :: i, j, nindex, tindex
+    integer :: i, j, k, nindex, tindex, ci(3)
     real    :: x, y
-        
+    logical :: exist = .false.
+    integer :: tnnei(nnode, 21) ! nmaxnonzeros = 10, 2*nmaxnonzeros+1
+    integer :: temp, count
+    integer :: tmp_neighbor(nmaxnonzeros), numit
+    integer :: bSort
+    
     ! Set nodes
     y = domin(2)
     nindex = 0
@@ -160,6 +194,107 @@ subroutine set_mesh_on_rectangular_domain(domin, nsubd, grid_spacing, &
             triangle(tindex, 3) =      j*(nsubd(1)+1) + i   ! (i,j+1)
         end do
     end do
+    
+    ! Find node neighbors
+    tnnei(:, 1) = 0
+    
+    do i = 1, ntriangle
+        ci = triangle(i,:)
+        
+        ! For local node(1)
+        temp = tnnei(ci(1), 1)
+        tnnei(ci(1), 1) = tnnei(ci(1),1) + 2
+        tnnei(ci(1), temp+2) = ci(2)
+        tnnei(ci(1), temp+3) = ci(3)
+        
+        ! For local node(2)
+        temp = tnnei(ci(2), 1)
+        tnnei(ci(2), 1) = tnnei(ci(2),1) + 2
+        tnnei(ci(2), temp+2) = ci(1)
+        tnnei(ci(2), temp+3) = ci(3)
+        
+        ! For local node(3)
+        temp = tnnei(ci(3), 1)
+        tnnei(ci(3), 1) = tnnei(ci(3),1) + 2
+        tnnei(ci(3), temp+2) = ci(1)
+        tnnei(ci(3), temp+3) = ci(2)
+    end do            
+    
+    !do i = 1, nnode
+    !    if (tnnei(i, 1) > 0) then
+    !        print*, 'i=', i, " : ", tnnei(i, 1:tnnei(i,1)+1)
+    !    else
+    !        print*, 'i=', i, " : ", tnnei(i, 1)
+    !    end if
+    !end do
+    
+    do i = 1, nnode
+        count = 0
+        if (tnnei(i,1) > 0) then
+            do j = 2, tnnei(i,1) + 1
+                temp = tnnei(i, j)
+                exist = .false.
+                do k = 2, count + 1
+                    if (temp == node_neighbor(i, k)) then
+                        exist = .true.
+                        exit
+                    end if
+                end do
+                
+                if (exist == .false.) then
+                    count = count + 1
+                    node_neighbor(i,count+1) = temp
+                end if
+            end do
+            node_neighbor(i,1) = count
             
+            tmp_neighbor(1:count) = node_neighbor(i, 2:count+1)
+            numit = bSort(tmp_neighbor, count)
+            node_neighbor(i, 2:count+1) = tmp_neighbor(1:count)
+        end if
+    end do
+    
+    ! Set boundary nodes
+    isbdry = .false.
+    do j = 1, nsubd(2)+1
+        do i = 1, nsubd(1)+1
+            if ( i == 1 .or. i==nsubd(1)+1 .or. j==1 .or. j==nsubd(2)+1) then
+                isbdry((j-1)*(nsubd(1)+1)+i) = .true.
+            end if
+        end do
+    end do
+    
 end subroutine
+    
+INTEGER FUNCTION bSort(data, size)
+IMPLICIT NONE
+
+INTEGER, INTENT(IN) :: size
+INTEGER, INTENT(OUT) :: data(size)
+
+        INTEGER :: temp
+        INTEGER :: i
+        INTEGER :: j
+        INTEGER :: num_it = 0
+        INTEGER :: ns = 0
+
+        DO i = SIZE, 1, -1
+                ns = 0
+                DO j = 1, i-1, 1
+                        num_it = num_it + 1
+                        IF (data(j) > data(j+1)) THEN
+                        ns = 1
+                        temp = data(j)
+                        data(j) = data(j+1)
+                        data(j+1) = temp
+                        END IF
+                END DO
+                IF (ns == 0) EXIT
+        END DO
+
+bSort = num_it
+
+END FUNCTION bSort
+
+    
 
