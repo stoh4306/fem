@@ -28,7 +28,7 @@ subroutine compute_fem_matrix_equation(domin, nsubd, grid_spacing, &
     integer :: nidx(3), tidx
     real    :: v(3,2), tv(3, 2)
     real    :: G(3,3), dphi(3,2)
-    real    :: T(2,2), W(2,2), det
+    real    :: T(2,2), invT(2,2), W(2,2), det
     real    :: dphiw(3,2)
     real    :: ta(3,3), tG
     
@@ -83,11 +83,33 @@ subroutine compute_fem_matrix_equation(domin, nsubd, grid_spacing, &
         T(:,1) = tv(2,:)
         T(:,2) = tv(3,:)
         
+        invT(1,1) = T(2,2)
+        invT(1,2) = -T(1,2)
+        invT(2,1) = -T(2,1)
+        invT(2,2) = T(1,1)
+        
+        det = abs(T(1,1)*T(2,2)-T(1,2)*T(2,1))
+        invT = invT / det
+        
+        if (i==1) then
+            print *, 'T='
+            print *, T(1, :)
+            print *, T(2, :)
+            print *, 'invT='
+            print *, invT(1, :)
+            print *, invT(2, :)
+        end if
+                
         det = abs(T(1,1)*T(2,2)-T(1,2)*T(2,1))
         print*, 'det=', det
         
-        W = matmul(T,transpose(T))
-        
+        !W = matmul(T,transpose(T))
+        W = matmul(invT, transpose(invT))
+        if (i==1) then
+            print*, W(1, :)
+            print*, W(2, :)
+        end if
+                
         !print*, T
         !print*, W
         
@@ -97,8 +119,14 @@ subroutine compute_fem_matrix_equation(domin, nsubd, grid_spacing, &
             dphiw(j,:) = matmul(dphi(j,:),W)
             do k = j, 3
                 ta(j,k) = dot_product(dphiw(j,:), dphi(k,:))*0.5*det
-                !print*, j, k, ta(j,k)
+                if (i==1) then
+                    print*, j, k, ta(j,k)
+                end if
+                
                 tG = G(j,k)*det
+                if (i==1) then
+                    print*, j, k, tG, f(nidx(k))
+                end if
                 
                 ! nidx(j)
                 do l = 2, K_sparse_index(nidx(j),1) + 1
