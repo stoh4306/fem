@@ -33,7 +33,7 @@ subroutine compute_fem_matrix_equation(domin, nsubd, grid_spacing, &
     real    :: ta(3,3), tG
     
     ! Initialize K and b
-    K_sparse_index(:, 1) = node_neighbor(:,1) + 1 ! number of nonzero elements
+    K_sparse_index(:, 1) = node_neighbor(:,1) + 1 ! number of neighbor nodes + 1 (itself)
     do i = 1, nnode
         K_sparse_index(i, 2) = i
         K_sparse_index(i, 3:node_neighbor(i,1)+2) = &
@@ -42,6 +42,7 @@ subroutine compute_fem_matrix_equation(domin, nsubd, grid_spacing, &
     
     K_sparse = 0.0
     K_sparse(:,1) = K_sparse_index(:,1)
+    print*, 'K(:,1)=', K_sparse(:,1)
     
     b = 0.0
     
@@ -193,7 +194,11 @@ subroutine compute_fem_matrix_equation(domin, nsubd, grid_spacing, &
     !    
     !end do
     
-    
+    print*, "b=", b
+    print*, "K="
+    do i = 1, nnode
+        print*, "i=", K_sparse(i,:)
+    end do
     ! For boundary condition
     do i = 1, nnode
         if (isbdry(i)) then

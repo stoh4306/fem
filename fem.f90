@@ -38,6 +38,7 @@ program fem
     real        :: K_sparse(NNODE, NMAXNONZEROS), b(NNODE)
     
     integer :: i
+    real        :: tempValue
     
     ! Set domain
     domin = [0.0, 0.0]
@@ -88,7 +89,7 @@ program fem
     print *, 'K :'
     do i = 1, nnode
         if (K_sparse_index(i, 1) > 0) then
-            print*, 'i=', i, " : ", K_sparse(i, 2:K_sparse_index(i,1)+1)
+            print*, 'i=', i, " : ", K_sparse(i, 1:K_sparse_index(i,1)+1)
         else
             print*, 'i=', i, " : "
         end if
@@ -96,6 +97,11 @@ program fem
     
     print*, 'b :', b
     
+    tempValue = 0.0
+    do i = 3,  K_sparse_index(5,1)+1
+        tempValue = tempValue + K_sparse(5,i) * b(K_sparse_index(5,i))
+    end do
+    print*, tempValue
    
 end program fem
     
@@ -126,7 +132,7 @@ end subroutine
 real function source_func(x, y)
     implicit none
     real :: x, y
-    source_func = 2.0*(x*(1.0-x)+y*(1.0-y))
+    source_func = -4.0 !2.0*(x*(1.0-x)+y*(1.0-y))
 end function source_func
     
 !----------------------------------
@@ -135,7 +141,7 @@ end function source_func
 real function bdry_func(x, y)
     implicit none
     real :: x, y
-    bdry_func = 0.0
+    bdry_func = x*x+y*y
 end function bdry_func
     
 subroutine set_mesh_on_rectangular_domain(domin, nsubd, grid_spacing, &
