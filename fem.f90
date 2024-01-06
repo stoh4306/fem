@@ -23,7 +23,7 @@ program fem
     integer     :: nsubd(2), grid_size(2)
     real        :: grid_spacing(2)
     
-    integer, parameter      :: GRIDNX = 2, GRIDNY = 2
+    integer, parameter      :: GRIDNX = 4, GRIDNY = 4
     integer, parameter      :: NNODE = (GRIDNX + 1) * (GRIDNY + 1)
     integer, parameter      :: NTRIANGLE = GRIDNX * GRIDNY * 2
     integer, parameter      :: NMAXNONZEROS = 10
@@ -39,6 +39,10 @@ program fem
     
     integer :: i
     real        :: tempValue
+
+    real        :: eps, x(NNODE), err
+    integer     :: iter
+
     
     ! Set domain
     domin = [0.0, 0.0]
@@ -73,36 +77,51 @@ program fem
     !    print *, triangle(i,:)
     !end do
     
-    print *, 'Neighbors : '
-    do i = 1, nnode
-        if (node_neighbor(i, 1) > 0) then
-            print*, 'i=', i, " : ", node_neighbor(i, 1:node_neighbor(i,1)+1)
-        else
-            print*, 'i=', i, " : ", node_neighbor(i, 1)
-        end if
-    end do
+    ! print *, 'Neighbors : '
+    ! do i = 1, nnode
+    !     if (node_neighbor(i, 1) > 0) then
+    !         print*, 'i=', i, " : ", node_neighbor(i, 1:node_neighbor(i,1)+1)
+    !     else
+    !         print*, 'i=', i, " : ", node_neighbor(i, 1)
+    !     end if
+    ! end do
     
-    print *, 'f : ', f(1:nnode)
-    print *, 'g : ', g(1:nnode)
-    print *, 'bdry', isbdry
+    ! print *, 'f : ', f(1:nnode)
+    ! print *, 'g : ', g(1:nnode)
+    ! print *, 'bdry', isbdry
     
-    print *, 'K :'
-    do i = 1, nnode
-        if (K_sparse_index(i, 1) > 0) then
-            print*, 'i=', i, " : ", K_sparse(i, 1:K_sparse_index(i,1)+1)
-        else
-            print*, 'i=', i, " : "
-        end if
-    end do
+    ! print *, 'K :'
+    ! do i = 1, nnode
+    !     if (K_sparse_index(i, 1) > 0) then
+    !         print*, 'i=', i, " : ", K_sparse(i, 1:K_sparse_index(i,1)+1)
+    !     else
+    !         print*, 'i=', i, " : "
+    !     end if
+    ! end do
     
-    print*, 'b :', b
+    ! print*, 'b :', b
+
+    ! print *, 'K_Index :'
+    ! do i = 1, nnode
+    !     if (K_sparse_index(i, 1) > 0) then
+    !         print*, 'i=', i, " : ", K_sparse_index(i,1:K_sparse_index(i,1)+1)
+    !     else
+    !         print*, 'i=', i, " : "
+    !     end if
+    ! end do
     
-    tempValue = 0.0
-    do i = 3,  K_sparse_index(5,1)+1
-        tempValue = tempValue + K_sparse(5,i) * b(K_sparse_index(5,i))
-    end do
-    print*, tempValue
-   
+    ! tempValue = 0.0
+    ! do i = 3,  K_sparse_index(5,1)+1
+    !     tempValue = tempValue + K_sparse(5,i) * b(K_sparse_index(5,i))
+    ! end do
+    ! print*, tempValue
+
+    eps = 1.0E-9
+    
+    call sparse_conj_gradient_sp(NNODE, NMAXNONZEROS, K_sparse_index, K_sparse, b, &
+            eps, x, err, iter)
+    print*, "x=", x
+    print*, "err=", err, "iter=", iter
 end program fem
     
 subroutine set_source_bdry_func(domin, nsubd, grid_spacing, nnode, node, f, g)
